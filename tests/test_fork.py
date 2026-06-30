@@ -5,6 +5,7 @@ from flightrec.store import Store
 from flightrec import cli
 from flightrec.fork import fork
 from flightrec.replay import recorded_tuples
+from flightrec.diff import diff, format_report
 
 
 def _record(tmp_path, fake_llm):
@@ -54,3 +55,16 @@ def test_fork_suffix_is_live_and_recorded(tmp_path, fake_llm):
                       if (e.agent_id, e.event_type, e.seq) ==
                       (branch.agent_id, branch.event_type, branch.seq))
     assert branch_idx < len(c) - 1  # at least one live suffix event
+
+
+def test_diff_reports_branch_and_changes(tmp_path, fake_llm):
+    store, parent = _record(tmp_path, fake_llm)
+    branch = _first_tool_event(store, parent)
+    child = fork(store, parent, branch.event_id, {"results": ["MUT"], "query": "q"})
+    report = diff(store, parent, child)
+    # Branch detected exactly at the mutated tool_call.
+    assert report.branch_event == (branch.agent_id, branch.event_type, branch.seq)
+    # Non-empty downstream changes, attributed to agents.
+    assert sum(report.changed_by_agent.values()) > 0
+    text = format_report(report)
+    assert "branch" in text.lower()

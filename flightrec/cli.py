@@ -14,6 +14,7 @@ from . import interceptor as itc
 from .agent.reference_agent import run_agent
 from .replay import replay as _replay, DeterminismError
 from .fork import fork as _fork
+from .diff import diff as _diff, format_report
 
 app = typer.Typer(add_completion=False, help="Record / replay / time-travel debugger.")
 
@@ -91,6 +92,13 @@ def fork(trace_id: str,
     mutation = _json.loads(set)
     child = _fork(store, trace_id, at, mutation)
     typer.echo(child)
+
+
+@app.command()
+def diff(trace_a: str, trace_b: str):
+    """Show the divergence report between two traces."""
+    store = _db()
+    typer.echo(format_report(_diff(store, trace_a, trace_b)))
 
 
 if __name__ == "__main__":
