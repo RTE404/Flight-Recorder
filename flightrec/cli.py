@@ -1,6 +1,7 @@
 """Typer CLI for Flight Recorder."""
 from __future__ import annotations
 
+import json as _json
 import os
 import time
 import uuid
@@ -12,6 +13,7 @@ from .store import Store
 from . import interceptor as itc
 from .agent.reference_agent import run_agent
 from .replay import replay as _replay, DeterminismError
+from .fork import fork as _fork
 
 app = typer.Typer(add_completion=False, help="Record / replay / time-travel debugger.")
 
@@ -78,6 +80,17 @@ def replay(trace_id: str):
         typer.echo(f"✗ DRIFT: {exc}", err=True)
         raise typer.Exit(1)
     typer.echo(f"✓ replay deterministic: {len(produced)} events reproduced, 0 real calls")
+
+
+@app.command()
+def fork(trace_id: str,
+         at: str = typer.Option(..., "--at", help="event_id to fork at"),
+         set: str = typer.Option(..., "--set", help="JSON mutation for the branch event")):
+    """Fork a trace: mutate one recorded value at --at, run the suffix live."""
+    store = _db()
+    mutation = _json.loads(set)
+    child = _fork(store, trace_id, at, mutation)
+    typer.echo(child)
 
 
 if __name__ == "__main__":
