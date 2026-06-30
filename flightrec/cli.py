@@ -11,6 +11,7 @@ from .models import Trace
 from .store import Store
 from . import interceptor as itc
 from .agent.reference_agent import run_agent
+from .replay import replay as _replay, DeterminismError
 
 app = typer.Typer(add_completion=False, help="Record / replay / time-travel debugger.")
 
@@ -65,6 +66,18 @@ def show(trace_id: str):
         resp = e.response_json if len(e.response_json) <= 70 else e.response_json[:67] + "..."
         typer.echo(f"seq={e.seq} lc={e.logical_clock} {e.agent_id:11} "
                    f"{e.event_type:9} {e.event_id}  {resp}")
+
+
+@app.command()
+def replay(trace_id: str):
+    """Faithful replay + determinism assertion."""
+    store = _db()
+    try:
+        produced = _replay(store, trace_id)
+    except (DeterminismError, itc.ReplayDrift, itc.ReplayViolation) as exc:
+        typer.echo(f"✗ DRIFT: {exc}", err=True)
+        raise typer.Exit(1)
+    typer.echo(f"✓ replay deterministic: {len(produced)} events reproduced, 0 real calls")
 
 
 if __name__ == "__main__":
