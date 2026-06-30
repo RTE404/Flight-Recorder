@@ -37,8 +37,9 @@ No web framework, no async/concurrency, sequential agents only.
 
 ### LLM provider decision
 
-Recording always hits a **real** provider (decision: "real key required"). Model is
-env-driven: default `groq/llama-3.1-8b-instant`, overridable via `FLIGHTREC_MODEL`.
+Recording always hits a **real** provider (decision: "real key required"). The target is
+**Groq's free tier** — `GROQ_API_KEY` in env, no cost. Model is env-driven: default
+`groq/llama-3.1-8b-instant` (a current free Groq model), overridable via `FLIGHTREC_MODEL`.
 LiteLLM auto-reads the provider key (`GROQ_API_KEY`, `OPENAI_API_KEY`, …) from env, so
 "read provider/key from env" is satisfied without hardcoding.
 
