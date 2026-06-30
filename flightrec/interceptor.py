@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
 import time
-import uuid
 from contextlib import contextmanager
 from typing import Any, Callable, Optional
 
@@ -68,7 +68,7 @@ class Interceptor:
         if self.write_trace_id is None:
             return
         self.store.append_event(Event(
-            event_id=uuid.uuid4().hex, trace_id=self.write_trace_id, seq=seq,
+            event_id=os.urandom(16).hex(), trace_id=self.write_trace_id, seq=seq,
             logical_clock=logical_clock, wall_clock=time.time(), agent_id=agent_id,
             event_type=event_type, request_json=request_json, response_json=response_json,
             boundary_hash=boundary_hash,
