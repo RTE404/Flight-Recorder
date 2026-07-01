@@ -5,3 +5,8 @@ __pycache__/
 .env
 .venv/
 flightrec.db
+.superpowers/
+*.egg-info/
+build/
+dist/
+.claude/settings.local.json
