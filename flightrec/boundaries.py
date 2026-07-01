@@ -67,4 +67,9 @@ def rand(*, agent_id: str) -> float:
 
 def agent_msg(from_agent: str, to_agent: str, payload: Any) -> Any:
     request = {"from": from_agent, "to": to_agent, "payload": payload}
-    return current().cross(from_agent, "agent_msg", request, lambda: payload)
+
+    def live():
+        current().guard_real_call()
+        return payload
+
+    return current().cross(from_agent, "agent_msg", request, live)

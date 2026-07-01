@@ -4,7 +4,6 @@ from flightrec.store import Store
 from flightrec import cli
 from flightrec import interceptor as itc
 from flightrec.replay import replay, recorded_tuples, DeterminismError
-from flightrec.agent.reference_agent import run_agent
 
 
 def _record(tmp_path, fake_llm):
@@ -42,7 +41,6 @@ def test_unclamped_clock_makes_replay_fail_loudly(tmp_path, fake_llm, monkeypatc
     """Bypass the clock boundary in the worker -> ts in the LLM prompt drifts -> raise."""
     store = Store(os.path.join(tmp_path, "f.db"))
     import flightrec.agent.reference_agent as ra
-    import time as _t
     # Patch the worker to stamp REAL time instead of the recorded boundary.
     real_now = {"v": 1000.0}
 

@@ -1,6 +1,5 @@
 import json
 import os
-import pytest
 from flightrec import cli
 from flightrec.store import Store
 

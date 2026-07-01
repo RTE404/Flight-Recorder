@@ -4,7 +4,6 @@ import pytest
 from flightrec.store import Store
 from flightrec import cli
 from flightrec.fork import fork
-from flightrec.replay import recorded_tuples
 from flightrec.diff import diff, format_report
 
 

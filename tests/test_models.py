@@ -1,4 +1,3 @@
-import json
 from flightrec.models import canonical, sha256_hex, Event, Trace
 
 
