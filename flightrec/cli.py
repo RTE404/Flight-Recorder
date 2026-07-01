@@ -78,9 +78,9 @@ def replay(trace_id: str):
     try:
         produced = _replay(store, trace_id)
     except (DeterminismError, itc.ReplayDrift, itc.ReplayViolation) as exc:
-        typer.echo(f"✗ DRIFT: {exc}", err=True)
+        typer.echo(f"DRIFT: {exc}", err=True)
         raise typer.Exit(1)
-    typer.echo(f"✓ replay deterministic: {len(produced)} events reproduced, 0 real calls")
+    typer.echo(f"OK replay deterministic: {len(produced)} events reproduced, 0 real calls")
 
 
 @app.command()
