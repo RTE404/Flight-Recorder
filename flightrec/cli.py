@@ -59,7 +59,8 @@ def ls():
 
 
 @app.command()
-def show(trace_id: str):
+def show(trace_id: str,
+        vector: bool = typer.Option(False, "--vector", help="also print vector_clock")):
     """Print the event log for a trace."""
     store = _db()
     if store.get_trace(trace_id) is None:
@@ -67,8 +68,11 @@ def show(trace_id: str):
         raise typer.Exit(1)
     for e in store.get_events(trace_id):
         resp = e.response_json if len(e.response_json) <= 70 else e.response_json[:67] + "..."
-        typer.echo(f"seq={e.seq} lc={e.logical_clock} {e.agent_id:11} "
-                   f"{e.event_type:9} {e.event_id}  {resp}")
+        line = (f"seq={e.seq} lc={e.logical_clock} rank={e.causal_rank} {e.agent_id:11} "
+               f"{e.event_type:9} {e.event_id}  {resp}")
+        if vector:
+            line += f"  vc={e.vector_clock}"
+        typer.echo(line)
 
 
 @app.command()
