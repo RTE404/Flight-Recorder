@@ -45,6 +45,69 @@ def test_build_graph_structure(tmp_path, fake_llm):
         assert send.event_id in msg_froms
 
 
+def test_message_edges_target_correct_events(tmp_path, fake_llm):
+    """Verify that agent_msg edges land on the semantically correct recipient event.
+
+    This strengthens the test coverage: the previous test only checked that send events
+    appear in some message edge "from" field, but didn't validate that the "to" side
+    lands on the correct target. A buggy implementation could match sends to wrong events.
+
+    Expected message edges in the reference agent pipeline:
+    - planner->worker_a should land on worker_a's FIRST event (random event)
+    - planner->worker_b should land on worker_b's FIRST event (random event)
+    - worker_a->synthesizer should land on synthesizer's llm_call event
+    - worker_b->synthesizer should land on synthesizer's llm_call event
+    """
+    store, tid = _record(tmp_path, fake_llm)
+    g = build_graph(store, tid)
+
+    # Index nodes by (agent_id, event_type, seq) for precise matching
+    by_key = {(n["agent_id"], n["event_type"], n["seq"]): n for n in g["nodes"]}
+
+    # Index nodes by event_id for edge traversal
+    by_event_id = {n["event_id"]: n for n in g["nodes"]}
+
+    # Get all message edges, indexed by from_id for easy lookup
+    msg_edges = {e["from"]: e for e in g["edges"] if e["kind"] == "message"}
+
+    # Get all agent_msg send events from the store
+    events = store.get_events(tid)
+    sends = {e.event_id: e for e in events if e.event_type == "agent_msg"}
+
+    # Find the first event of each worker (should be random event)
+    worker_a_first = by_key[("worker_a", "random", 0)]
+    worker_b_first = by_key[("worker_b", "random", 0)]
+    synthesizer_event = by_key[("synthesizer", "llm_call", 0)]
+
+    # Validate each message edge
+    for send_eid, send_event in sends.items():
+        assert send_eid in msg_edges, f"agent_msg {send_eid} not in any message edge"
+        edge = msg_edges[send_eid]
+        target = by_event_id[edge["to"]]
+
+        if send_event.agent_id == "planner":
+            # Planner sends should target the recipient's first event
+            if send_event.seq == 0:
+                # planner's first agent_msg goes to worker_a
+                assert target["agent_id"] == "worker_a"
+                assert target["event_id"] == worker_a_first["event_id"], \
+                    f"planner->worker_a should target worker_a's first event ({worker_a_first['event_id'][:8]}), " \
+                    f"but got {target['event_id'][:8]}"
+            elif send_event.seq == 1:
+                # planner's second agent_msg goes to worker_b
+                assert target["agent_id"] == "worker_b"
+                assert target["event_id"] == worker_b_first["event_id"], \
+                    f"planner->worker_b should target worker_b's first event ({worker_b_first['event_id'][:8]}), " \
+                    f"but got {target['event_id'][:8]}"
+        elif send_event.agent_id in ("worker_a", "worker_b"):
+            # Worker sends should target the synthesizer's llm_call event
+            assert target["agent_id"] == "synthesizer"
+            assert target["event_type"] == "llm_call"
+            assert target["event_id"] == synthesizer_event["event_id"], \
+                f"{send_event.agent_id}->synthesizer should target synthesizer's llm_call " \
+                f"({synthesizer_event['event_id'][:8]}), but got {target['event_id'][:8]}"
+
+
 def test_build_graph_unknown_trace_raises(tmp_path):
     store = Store(os.path.join(tmp_path, "empty.db"))
     with pytest.raises(ValueError):
