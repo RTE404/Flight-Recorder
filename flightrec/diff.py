@@ -1,4 +1,4 @@
-"""Textual diff between two traces."""
+"""Causally-keyed diff between two traces."""
 from __future__ import annotations
 
 import json
@@ -20,10 +20,6 @@ class DiffReport:
     final_b: str = ""
 
 
-def _tuple(e: Event) -> tuple:
-    return (e.agent_id, e.event_type, e.seq, e.boundary_hash, e.response_json)
-
-
 def _final(events: list[Event]) -> str:
     for e in reversed(events):
         if e.agent_id == "synthesizer" and e.event_type == "llm_call":
@@ -35,41 +31,42 @@ def _final(events: list[Event]) -> str:
 
 
 def diff(store: Store, trace_a: str, trace_b: str) -> DiffReport:
-    a = store.get_events(trace_a)
-    b = store.get_events(trace_b)
-    branch_index: Optional[int] = None
-    branch_event: Optional[tuple] = None
-    n = min(len(a), len(b))
-    for i in range(n):
-        if _tuple(a[i]) != _tuple(b[i]):
-            branch_index = i
-            branch_event = (a[i].agent_id, a[i].event_type, a[i].seq)
-            break
-    if branch_index is None and len(a) != len(b):
-        branch_index = n
-        src = a[n] if len(a) > len(b) else b[n]
-        branch_event = (src.agent_id, src.event_type, src.seq)
+    a = {(e.agent_id, e.event_type, e.seq): e for e in store.get_events(trace_a)}
+    b = {(e.agent_id, e.event_type, e.seq): e for e in store.get_events(trace_b)}
+    keys = set(a) | set(b)
 
-    changed: dict[str, int] = {}
-    if branch_index is not None:
-        for i in range(branch_index, max(len(a), len(b))):
-            ea = a[i] if i < len(a) else None
-            eb = b[i] if i < len(b) else None
-            if ea is None or eb is None or _tuple(ea) != _tuple(eb):
-                agent = (ea or eb).agent_id
-                changed[agent] = changed.get(agent, 0) + 1
+    changed_keys = []
+    for k in keys:
+        ea, eb = a.get(k), b.get(k)
+        if ea is None or eb is None or (
+            (ea.boundary_hash, ea.response_json) != (eb.boundary_hash, eb.response_json)
+        ):
+            changed_keys.append(k)
 
-    return DiffReport(trace_a=trace_a, trace_b=trace_b, branch_index=branch_index,
-                      branch_event=branch_event, changed_by_agent=changed,
-                      final_a=_final(a), final_b=_final(b))
+    def rank_of(k):
+        e = a.get(k) or b.get(k)
+        return (e.causal_rank, k)
+
+    branch = min(changed_keys, key=rank_of) if changed_keys else None
+
+    changed_by_agent: dict[str, int] = {}
+    for (agent, _t, _s) in changed_keys:
+        changed_by_agent[agent] = changed_by_agent.get(agent, 0) + 1
+
+    return DiffReport(
+        trace_a=trace_a, trace_b=trace_b, branch_index=None,
+        branch_event=branch, changed_by_agent=changed_by_agent,
+        final_a=_final(store.get_events(trace_a)),
+        final_b=_final(store.get_events(trace_b)),
+    )
 
 
 def format_report(r: DiffReport) -> str:
     lines = [f"diff {r.trace_a} -> {r.trace_b}"]
-    if r.branch_index is None:
+    if r.branch_event is None:
         lines.append("no divergence: traces are identical")
     else:
-        lines.append(f"branch point: index {r.branch_index} at {r.branch_event}")
+        lines.append(f"branch point: {r.branch_event}")
         total = sum(r.changed_by_agent.values())
         lines.append(f"changed downstream events: {total}")
         for agent, count in sorted(r.changed_by_agent.items()):
