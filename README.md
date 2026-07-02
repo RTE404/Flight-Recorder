@@ -19,6 +19,43 @@ running on raw LiteLLM tool-calling. The mock `search` tool is intentionally non
 never reproduce. That makes the determinism guarantee meaningful: `flightrec replay`
 re-derives each agent's event sequence and asserts it is byte-identical to the recording.
 
+## What's new in V2
+
+V1 was a strictly **sequential** pipeline: it worked only because a single thread made three
+orderings coincide (execution order, SQLite `rowid`, and the list `replay` compared against).
+V2 makes the two workers run on real OS threads and replaces that accidental total order with
+an explicit causality model. The concrete changes:
+
+- **Real parallelism.** `worker_a` and `worker_b` run on `threading.Thread`s and genuinely
+  overlap — a run is about as slow as *one* worker's `tool_call + llm`, not two. The
+  planner→worker handoffs happen in the main thread before spawn; the joiner captures each
+  worker's exceptions and re-raises them in a fixed order so a `ReplayDrift` raised *inside* a
+  thread still surfaces from `replay()`.
+- **Vector clocks instead of a global counter.** Each agent is a "process" with its own
+  vector-clock component; `agent_msg` is the sole send/receive sync point, merging vectors via
+  a mailbox (element-wise max, so delivery order can't change a recomputed vector). The old
+  Lamport scalar is retained only for display.
+- **A new, honest determinism guarantee** — per-agent byte-identity **plus** a reproduced
+  happens-before partial order, with concurrent interleaving explicitly free (stated in full
+  under "Concurrency & determinism (V2)" below).
+- **Causal fork.** Forking one worker's event reruns only that event's *causal future* live
+  and reuses (replays) everything in its past or concurrent with it. Forking `worker_a`'s
+  `tool_call` makes **zero** real calls for `worker_b`.
+- **Thread-safe store.** SQLite opens with `check_same_thread=False` and every store method is
+  serialized by a lock. `get_events` now returns a deterministic causal order
+  (`ORDER BY causal_rank, agent_id, event_type, seq`) that never depends on thread timing.
+- **Schema change.** Events gain two columns, `vector_clock` and `causal_rank` (see the
+  migration note in Install).
+- **Interceptor rewrite.** One process-global, lock-protected interceptor with three phases
+  (record / replay / fork) that decides live-vs-replay-vs-mutate **per crossing** from
+  causality + a taint set — replacing V1's mid-run `phase = RECORD` flip (a data race under
+  threads). The lock is never held across the network call, so parallelism is preserved.
+- **CLI.** `flightrec show` prints each event's `rank=` and takes an optional `--vector` flag
+  to also print the full `vector_clock`.
+- **Tests.** New `tests/test_vector_clock.py` and `tests/test_concurrency.py` cover the clock
+  algebra, interleaving-independent replay, causal-fork reuse, thread-exception propagation,
+  and real wall-clock overlap (44 tests total, all offline).
+
 ## Install
 
 ```
