@@ -1,15 +1,17 @@
-"""Sequential reference pipeline: planner -> worker_a / worker_b -> synthesizer."""
+"""Concurrent reference pipeline: planner -> worker_a / worker_b (parallel) -> synthesizer."""
 from __future__ import annotations
 
 import json
+import threading
 
 from .. import boundaries as b
 
 PLANNER = "planner"
 SYNTH = "synthesizer"
+WORKER_IDS = ["worker_a", "worker_b"]
 
 
-def _plan(task: str) -> dict:
+def _plan(task: str) -> list[str]:
     prompt = (
         "You are a planner. Break the task into exactly two sub-questions. "
         'Reply ONLY with JSON: {"sub_questions": ["...", "..."]}.\n\nTask: ' + task
@@ -22,7 +24,7 @@ def _plan(task: str) -> dict:
             raise ValueError
     except Exception:
         subs = [f"What is essential about: {task}?", f"What are the risks of: {task}?"]
-    return {"sub_questions": subs}
+    return subs
 
 
 def _work(agent_id: str, sub_question: str) -> str:
@@ -39,22 +41,46 @@ def _work(agent_id: str, sub_question: str) -> str:
     return resp["content"]
 
 
-def run_agent(task: str) -> dict:
-    plan = _plan(task)
-    sub_a, sub_b = plan["sub_questions"]
-
-    b.agent_msg(PLANNER, "worker_a", {"sub_question": sub_a})
-    ans_a = _work("worker_a", sub_a)
-    b.agent_msg("worker_a", SYNTH, {"answer": ans_a})
-
-    b.agent_msg(PLANNER, "worker_b", {"sub_question": sub_b})
-    ans_b = _work("worker_b", sub_b)
-    b.agent_msg("worker_b", SYNTH, {"answer": ans_b})
-
+def _synthesize(task: str, answers: dict) -> str:
     prompt = (
         "Combine these two answers into a final response.\n"
-        f"A: {ans_a}\nB: {ans_b}"
+        f"A: {answers['worker_a']}\nB: {answers['worker_b']}"
     )
-    final = b.llm([{"role": "user", "content": prompt}], agent_id=SYNTH)["content"]
-    return {"task": task, "plan": plan, "answers": {"worker_a": ans_a, "worker_b": ans_b},
-            "final": final}
+    return b.llm([{"role": "user", "content": prompt}], agent_id=SYNTH)["content"]
+
+
+def run_agent(task: str) -> dict:
+    sub_questions = _plan(task)
+
+    # Planner -> worker handoffs happen in the main thread, in fixed order, so
+    # planner's own events are totally ordered and never race with each other.
+    assignments = {wid: b.agent_msg(PLANNER, wid, sq)
+                   for wid, sq in zip(WORKER_IDS, sub_questions)}
+
+    answers: dict[str, str] = {}
+    errors: dict[str, BaseException] = {}
+    lock = threading.Lock()
+
+    def worker_entry(wid: str) -> None:
+        try:
+            ans = _work(wid, assignments[wid])
+            b.agent_msg(wid, SYNTH, ans)  # real join edge -> taints synth on fork
+            with lock:
+                answers[wid] = ans
+        except BaseException as e:  # threads don't propagate exceptions through join()
+            with lock:
+                errors[wid] = e
+
+    threads = [threading.Thread(target=worker_entry, args=(wid,)) for wid in WORKER_IDS]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    if errors:  # re-raise deterministically, in WORKER_IDS order
+        for wid in WORKER_IDS:
+            if wid in errors:
+                raise errors[wid]
+
+    final = _synthesize(task, answers)
+    return {"final": final, "answers": answers}
