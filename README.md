@@ -12,12 +12,12 @@ boundaries; replay by feeding the recorded values back in. The agent's own logic
 real — only the boundaries are scripted. Replay is free and offline; any real external call
 during replay raises `ReplayViolation`, which is how unclamped boundaries get caught.
 
-The reference system is a sequential pipeline — **planner → worker_a / worker_b →
-synthesizer** — running on raw LiteLLM tool-calling. The mock `search` tool is intentionally
-non-deterministic (its result depends on a random seed drawn per run), so without
-record/replay a run would never reproduce. That makes the determinism guarantee meaningful:
-`flightrec replay` re-derives the entire event sequence and asserts it is byte-identical to
-the recording.
+The reference system is a **planner → worker_a / worker_b → synthesizer** pipeline where the
+two workers run concurrently on real OS threads (see "Concurrency & determinism (V2)" below),
+running on raw LiteLLM tool-calling. The mock `search` tool is intentionally non-deterministic
+(its result depends on a random seed drawn per run), so without record/replay a run would
+never reproduce. That makes the determinism guarantee meaningful: `flightrec replay`
+re-derives each agent's event sequence and asserts it is byte-identical to the recording.
 
 ## Install
 
@@ -48,9 +48,10 @@ flightrec diff tr_abc123 tr_def456                            # branch point + c
 ```
 
 `replay` re-runs the agent against the recorded boundary values and asserts the produced
-event sequence equals the recording on `(agent_id, event_type, seq, boundary_hash,
-response_json)`. `fork` copies the recorded prefix, substitutes the mutated value at the
-branch event, then flips to live recording so the suffix genuinely re-runs and may diverge.
+events equal the recording on `(agent_id, event_type, seq, boundary_hash, response_json)`,
+per agent. `fork` re-runs the recording as a causal fork: it replays events that are in the
+branch's past or concurrent with it, mutates the branch event, and re-runs the branch's
+causal future live so the suffix genuinely diverges (see "Concurrency & determinism (V2)").
 
 ## How it works
 
@@ -60,14 +61,14 @@ branch event, then flips to live recording so the suffix genuinely re-runs and m
 | `flightrec/interceptor.py` | Process-global RECORD/REPLAY/FORK interceptor: per-agent vector clocks, a per-recipient message mailbox, a thread-safe lock, and per-crossing mode decisions (live / replay / mutate). |
 | `flightrec/store.py` | Append-only SQLite event store (event-sourced). |
 | `flightrec/replay.py` | Faithful replay + the byte-identical determinism assertion. |
-| `flightrec/fork.py` | Copy prefix → mutate at branch → run suffix live into a child trace. |
-| `flightrec/diff.py` | Align two traces, find the first divergence, report changed events per agent. |
+| `flightrec/fork.py` | Causal fork: replay past/concurrent events, mutate at the branch, re-run the causal future live into a child trace. |
+| `flightrec/diff.py` | Align two traces by `(agent_id, event_type, seq)`, report changed events per agent and the branch point. |
 | `flightrec/agent/` | The reference agent and the pure mock `search` tool. |
 
 The replay match key is `(agent_id, event_type, seq)`; a per-event `boundary_hash` of the
 canonical request detects drift. `wall_clock` is stored for display only and never used for
-matching. The Lamport clock is recorded per event so adding real concurrency later is a
-drop-in.
+matching. Each event also records a per-agent `vector_clock` so replay/fork/diff stay correct
+under real concurrency (see below).
 
 ## Concurrency & determinism (V2)
 

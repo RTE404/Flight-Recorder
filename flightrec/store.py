@@ -56,6 +56,19 @@ class Store:
         with self._lock:
             self.conn.executescript(_SCHEMA)
             self.conn.commit()
+            # CREATE TABLE IF NOT EXISTS leaves a pre-existing V1 `events` table
+            # (no vector_clock/causal_rank columns) untouched, so a stale V1 db
+            # would otherwise fail later with a raw sqlite "no such column" error
+            # on the first append. Detect the mismatch here and fail clearly.
+            cols = {row["name"] for row in
+                    self.conn.execute("PRAGMA table_info(events)").fetchall()}
+            missing = {"vector_clock", "causal_rank"} - cols
+            if cols and missing:
+                raise RuntimeError(
+                    f"incompatible V1 database (events table missing {sorted(missing)}). "
+                    "Delete the old flightrec.db before running V2, or set FLIGHTREC_DB "
+                    "to a fresh path."
+                )
 
     def create_trace(self, trace: Trace) -> None:
         with self._lock:
