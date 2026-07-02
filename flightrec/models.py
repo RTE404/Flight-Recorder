@@ -30,6 +30,8 @@ class Event(BaseModel):
     request_json: str
     response_json: str
     boundary_hash: str
+    vector_clock: str = "{}"
+    causal_rank: int = 0
 
 
 class Trace(BaseModel):

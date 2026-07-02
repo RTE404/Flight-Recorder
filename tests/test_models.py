@@ -26,6 +26,19 @@ def test_event_roundtrips_through_dict():
     assert Event(**e.model_dump()) == e
 
 
+def test_event_new_fields_default_and_roundtrip():
+    e = Event(
+        event_id="e1", trace_id="t1", seq=0, logical_clock=1, wall_clock=123.0,
+        agent_id="planner", event_type="llm_call",
+        request_json='{"a":1}', response_json='{"b":2}', boundary_hash="abc",
+    )
+    assert e.vector_clock == "{}"
+    assert e.causal_rank == 0
+
+    e2 = Event(**{**e.model_dump(), "vector_clock": '{"planner":2}', "causal_rank": 2})
+    assert Event(**e2.model_dump()) == e2
+
+
 def test_trace_optional_fields_default_none():
     t = Trace(trace_id="t1", task="hi", status="recording", created_at=1.0)
     assert t.parent_trace_id is None
