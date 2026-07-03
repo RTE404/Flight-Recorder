@@ -10,7 +10,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "httpx>=0.27"]
+dev = ["pytest>=8.0", "httpx>=0.27", "flightrec[web]"]
 web = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]
 
 [project.scripts]
