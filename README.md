@@ -56,6 +56,32 @@ an explicit causality model. The concrete changes:
   algebra, interleaving-independent replay, causal-fork reuse, thread-exception propagation,
   and real wall-clock overlap (44 tests total, all offline).
 
+## What's new in V3
+
+V3 adds a local web UI for browsing recorded traces — no new record/replay/fork semantics,
+purely a read-side view over the V2 store. The concrete changes:
+
+- **`flightrec serve` command.** Launches a FastAPI app (`flightrec/web/server.py`) at
+  `http://127.0.0.1:8000`, local only, no authentication.
+- **Swimlane DAG viewer.** One lane per agent, events placed left-to-right by causal rank,
+  colored by fork role (recorded / reused / mutated / live). Click a node for its full detail
+  (vector clock, causal rank, request/response); fork or diff two traces from the UI (see
+  "Web viewer (V3)" below).
+- **Live websocket updates.** While a run is in progress, `/ws/traces/{trace_id}` streams the
+  graph as it grows; each push replaces the whole node/edge set rather than appending, since a
+  late-written event can carry a lower causal rank than one already shown.
+- **Read-side graph computation.** `flightrec/web/graph.py` derives causal edges, fork roles,
+  and the diff overlay entirely at read time from `happens_before` — nothing new is persisted.
+- **One V2 store change.** SQLite now opens in WAL journal mode (`flightrec/store.py`), so the
+  server can read a trace while `flightrec run`/`fork` is still writing it. No schema change,
+  no change to the interceptor, fork, replay, or diff logic.
+- **Frontend.** Static HTML/CSS/JS (`flightrec/static/`) using Cytoscape.js from a CDN, no
+  build step.
+- **Tests.** New `tests/test_web_graph.py` and `tests/test_web_api.py` cover graph
+  construction, fork-role assignment, and every HTTP/websocket endpoint — fully offline via the
+  fake LLM fixture (54 tests total). The `dev` extra now pulls in the `web` extra
+  (`flightrec[web]`) so `pip install -e ".[dev]"` alone is enough to run the full suite.
+
 ## Install
 
 ```
