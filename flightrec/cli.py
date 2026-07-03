@@ -105,5 +105,13 @@ def diff(trace_a: str, trace_b: str):
     typer.echo(format_report(_diff(store, trace_a, trace_b)))
 
 
+@app.command()
+def serve(host: str = "127.0.0.1", port: int = 8000):
+    """Launch the local web DAG viewer at http://host:port. No auth - local tool only,
+    do not bind to a public interface."""
+    import uvicorn
+    uvicorn.run("flightrec.web.server:app", host=host, port=port)
+
+
 if __name__ == "__main__":
     app()
