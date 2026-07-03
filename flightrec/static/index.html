@@ -1,8 +1,41 @@
-<!-- Placeholder: the real frontend (index.html/style.css/app.js) is built in Task 6.
-     This file exists only so flightrec/web/server.py's StaticFiles mount has a
-     directory to serve at import time. -->
 <!doctype html>
-<html>
-  <head><title>Flight Recorder</title></head>
-  <body>Flight Recorder web UI coming soon.</body>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Flight Recorder — DAG Viewer</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <h1>Flight Recorder</h1>
+      <form id="new-run-form">
+        <input id="new-run-task" type="text" placeholder="New run: describe a task..." />
+        <button type="submit">Run</button>
+      </form>
+      <div id="diff-picker">
+        <select id="diff-a"></select>
+        <span>vs</span>
+        <select id="diff-b"></select>
+        <button id="diff-go" type="button">Diff</button>
+        <button id="diff-clear" type="button">Clear</button>
+      </div>
+      <ul id="trace-list"></ul>
+    </aside>
+    <main>
+      <div id="cy"></div>
+    </main>
+    <aside id="detail-panel" class="hidden">
+      <button id="detail-close" type="button">&times;</button>
+      <div id="detail-body"></div>
+      <form id="fork-form">
+        <h3>Fork here</h3>
+        <textarea id="fork-mutation" placeholder='{"results": ["..."]}'></textarea>
+        <button type="submit">Fork</button>
+      </form>
+    </aside>
+  </div>
+  <script src="/app.js"></script>
+</body>
 </html>

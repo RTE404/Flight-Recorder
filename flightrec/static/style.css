@@ -1,0 +1,21 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, sans-serif; background: #14161a; color: #e6e6e6; }
+#app { display: flex; height: 100vh; }
+#sidebar { width: 260px; padding: 12px; background: #1b1e24; overflow-y: auto; border-right: 1px solid #2a2e37; }
+#sidebar h1 { font-size: 16px; margin: 0 0 12px; }
+#new-run-form, #diff-picker { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+#new-run-form input { flex: 1; min-width: 0; }
+#trace-list { list-style: none; padding: 0; margin: 0; }
+#trace-list li { padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+#trace-list li:hover { background: #262a33; }
+#trace-list li.selected { background: #2f3a4f; }
+#trace-list .status { font-size: 11px; opacity: 0.7; }
+main { flex: 1; position: relative; }
+#cy { position: absolute; inset: 0; }
+#lane-labels { position: absolute; left: 0; top: 0; pointer-events: none; }
+#detail-panel { width: 320px; padding: 12px; background: #1b1e24; overflow-y: auto; border-left: 1px solid #2a2e37; }
+#detail-panel.hidden { display: none; }
+#detail-body dt { font-size: 11px; opacity: 0.6; margin-top: 8px; }
+#detail-body dd { margin: 0; font-size: 13px; word-break: break-word; }
+#fork-form textarea { width: 100%; height: 60px; margin: 6px 0; }
+button { cursor: pointer; }
