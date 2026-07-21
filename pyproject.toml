@@ -10,7 +10,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "httpx>=0.27", "flightrec[web]"]
+web = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]
 
 [project.scripts]
 flightrec = "flightrec.cli:app"
@@ -21,3 +22,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["flightrec*"]
+
+[tool.setuptools.package-data]
+flightrec = ["static/*"]

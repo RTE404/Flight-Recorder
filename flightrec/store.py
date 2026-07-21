@@ -54,6 +54,7 @@ class Store:
 
     def init_schema(self) -> None:
         with self._lock:
+            self.conn.execute("PRAGMA journal_mode=WAL")
             self.conn.executescript(_SCHEMA)
             self.conn.commit()
             # CREATE TABLE IF NOT EXISTS leaves a pre-existing V1 `events` table
