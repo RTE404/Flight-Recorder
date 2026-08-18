@@ -10,3 +10,7 @@ flightrec.db
 build/
 dist/
 .claude/settings.local.json
+.claude/worktrees/
+.tokensave/
+*.db-shm
+*.db-wal
